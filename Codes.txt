@@ -1,0 +1,214 @@
+#Reading the Dataset and splitting it into train(80%) for model selection and test(20%) data for evaluation.
+
+HrData=read.table("HR_comma_sep.csv",header=T,sep=",")
+HrData=HrData[sample(nrow(HrData)),]
+select.data= sample (1:nrow(HrData), 0.8*nrow(HrData))
+train.data= HrData[select.data,]
+test.data= HrData[-select.data,]
+
+#Creating Variables by assigning fields.
+
+satisfaction_level=HrData$satisfaction_level
+last_evaluation=HrData$last_evaluation
+number_project=HrData$number_project
+average_montly_hours=HrData$average_montly_hours
+time_spend_company=HrData$time_spend_company
+Work_accident=HrData$Work_accident
+left=HrData$left
+promotion_last_5years=HrData$promotion_last_5years
+sales=factor(HrData$sales)
+salary=factor(HrData$salary)
+
+#To display the number of rows for training and testing data.
+
+nrow(test.data)
+nrow(train.data)
+
+#Statistical description of the dataset.
+
+summary(HrData)
+
+#Displaying correlations between variables by correlation plot.
+#Load library "corrplot" for the same after installing the package.
+
+library(corrplot)
+m=cor(HrData[,-c(9,10)])
+corrplot(m,method="number")
+
+#Histogram representation of different parameters(satisfaction_level,last_evaluation,average_montly_hours, work_accident and salary) for scenario of left==1.
+#Load library "dplyr" for the same after installing the package.
+
+library(dplyr)
+Hr_histogram=filter(HrData,left==1)
+par(mfrow=c(1,3))
+hist(Hr_histogram$satisfaction_level,col="blue")
+hist(Hr_histogram$last_evaluation,col="blue")
+hist(Hr_histogram$average_montly_hours,col="blue")
+
+par(mfrow=c(1,2))
+hist(Hr_histogram$Work_accident,col="blue")
+plot(Hr_histogram$salary,col="blue",xlab="salary")
+
+
+#Model selection using train data and determining better model 
+# Building model without categorical data - m1
+
+m1=glm(left ~ satisfaction_level+last_evaluation+number_project+average_montly_hours+time_spend_company+Work_accident+
+promotion_last_5years,data=train.data,family=binomial())
+summary(m1)
+
+#Building model with categorical data - m2
+
+m2=glm(left ~ satisfaction_level+last_evaluation+number_project+average_montly_hours+time_spend_company+Work_accident+
+promotion_last_5years+salary+sales,data=train.data,family=binomial())
+summary(m2)
+
+#Trying to build model with step function 
+#Using step function and building model with backward elimination
+
+backward=step(m2,direction="backward",trace=F)
+summary(backward)
+
+#Using step function and building model with forward selection
+
+base=glm(left~satisfaction_level,data=train.data,family=binomial)
+forward=step(base, scope=list(upper=m2, lower=~1), direction="forward", trace=F)
+summary(forward)
+
+#Using step function and building model by keeping direction=both
+
+both=step(base, scope=list(upper=m2, lower=~1), direction="both", trace=F)
+summary(both)
+
+
+#Calculating VIF for best model i.e. m2
+#Load library "car" for the same after installing the package.
+
+library(car)
+vif(m2)
+
+#Residual Analysis
+
+plot(fitted(m2),rstandard(m2),col=c("blue","red")[1+train.data$left])
+abline(h=0,lty=2,col="grey")
+
+plot(predict(m2),residuals(m2),col=c("blue","red")[1+train.data$left])
+abline(h=0,lty=2,col="grey")
+
+qqnorm(residuals(m2),col=c("blue","red")[1+train.data$left])
+qqline(residuals(m2),col=2)
+
+#Calculating cooks distance
+d1=cooks.distance(m2)
+a=cbind(train.data,d1)
+q=a[d1>4/11999,]
+head(q)
+nrow(q)
+
+#Plotting cooks.distance for influential points.
+plot(d1, pch="*", cex=2, main="Influential points")
+
+#Model testing based on test data
+#Calculating classfication error for both models with confusion matrix
+
+#m1 with cutoff value 0.5
+
+pred1=predict(m1, test.data, type="response")
+model_pred_left=rep("0",3000)
+model_pred_left[pred1>0.5]="1"
+tab=table(model_pred_left,test.data$left)
+tab
+1-sum(diag(tab))/sum(tab)
+
+
+#m1 with cutoff value 0.4
+
+pred2=predict(m1, test.data, type="response")
+model_pred_left2=rep("0",3000)
+model_pred_left2[pred2>0.4]="1"
+tab2=table(model_pred_left2,test.data$left)
+tab2
+#Classification error
+1-sum(diag(tab2))/sum(tab2)
+#Accuracy
+sum(diag(tab2))/sum(tab2)
+
+#m1 with cutoff value 0.6
+
+pred3=predict(m1, test.data, type="response")
+model_pred_left3=rep("0",3000)
+model_pred_left3[pred3>0.6]="1"
+tab3=table(model_pred_left3,test.data$left)
+tab3
+1-sum(diag(tab3))/sum(tab3)
+
+#m2 with cutoff value 0.5
+
+pred4=predict(m2, test.data, type="response")
+model_pred_left4=rep("0",3000)
+model_pred_left4[pred4>0.5]="1"
+tab4=table(model_pred_left4,test.data$left)
+tab4
+1-sum(diag(tab4))/sum(tab4)
+
+#m2 with cutoff value 0.4
+
+pred5=predict(m2, test.data, type="response")
+model_pred_left5=rep("0",3000)
+model_pred_left5[pred5>0.4]="1"
+tab5=table(model_pred_left5,test.data$left)
+tab5
+#Classification error
+1-sum(diag(tab5))/sum(tab5)
+#Accuracy
+sum(diag(tab5))/sum(tab5)
+
+#m2 with cutoff value 0.6
+
+pred6=predict(m2, test.data, type="response")
+model_pred_left6=rep("0",3000)
+model_pred_left6[pred6>0.6]="1"
+tab6=table(model_pred_left6,test.data$left)
+tab6
+1-sum(diag(tab6))/sum(tab6)
+
+#Calculating McFadden's R square value
+
+nullmodel=glm(left~1,family="binomial")
+1-logLik(m1)/logLik(nullmodel)
+1-logLik(m2)/logLik(nullmodel)
+
+#wald test for single parameter
+
+library(aod)
+
+#dept wise
+wald.test(b=coef(m2), Sigma=vcov(m2), Terms=9:17)
+
+#for low salary
+wald.test(b=coef(m2), Sigma=vcov(m2), Terms=4)
+
+#checking confidence interval
+
+#for all the variables
+confint(m2)
+
+#for low salary
+ci=confint(m2,parm="salarylow")
+ci
+exp(ci)
+
+#for time_spend_company
+ci2=confint(m2,parm="time_spend_company")
+ci2
+exp(ci2)
+
+#checking the same
+coef(m2)
+exp(coef(m2))
+
+
+
+
+
+
